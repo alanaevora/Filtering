@@ -39,7 +39,7 @@ def play_rec(fs, sound):
     # possible source for APO: https://python-sounddevice.readthedocs.io/en/0.3.11/#sounddevice.AsioSetting
     file_reader, sample_rate = sf.read('Noise_8ch.wav')
     print("RECORDING...\n")
-    r_wn = sd.playrec(file_reader, fs, channels=1)  # playing and recording simultaneously & saving audio as NumPy array
+    r_wn = sd.playrec(file_reader, fs, channels=1)  # playing and recording simultaneously & saving audio as an array
     sd.wait()  # wait for the recording to finish before moving on
     return r_wn
 
@@ -71,7 +71,7 @@ def calc_filter(iter, fs, nfft, pb_wn, r_wn):
         ## pb_wn = pb_filt_wn
     
     # adjust the amp
-    if max(abs(r_wn)) > 0.2: # still need to figure out what this is doing
+    if max(abs(r_wn)) > 0.2:
         print("-- exceeds max amp")
         adjust = 0.2 / max(abs(r_wn))
         pb_wn = adjust * pb_wn
@@ -106,6 +106,7 @@ def calc_filter(iter, fs, nfft, pb_wn, r_wn):
 
 
 
+# THIS IS THE MODULE THAT IS RUN. IT CALLS THE FUNCTIONS ABOVE.
 if __name__ == "__main__":
     fs = 48000
     nfft = 1
