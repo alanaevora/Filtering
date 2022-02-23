@@ -1,8 +1,8 @@
-import math
 import numpy as np
-from scipy import signal
 import soundfile as sf
 import sounddevice as sd
+import matplotlib.pyplot as plt
+from scipy import signal
 
 
 def white_noise(fs):
@@ -13,7 +13,8 @@ def white_noise(fs):
     print("WHITE NOSIE\n")
     # create white noise
     wn = np.random.rand(2 * fs) - 0.5  # generate 2 sec of random noise (vector of evenly spaced random nums)
-    
+    plot_ta(wn, "wn: white noise")
+
     # taper white noise
     window = np.ones(len(wn))  # array of 1s that is the length of the random noise
     ramp = np.linspace(0, np.pi, round(fs/5))   # creates a vector = linspace(min(x), max(x), #points)
@@ -39,21 +40,26 @@ def play_rec(fs, sound):
     # possible source for APO: https://python-sounddevice.readthedocs.io/en/0.3.11/#sounddevice.AsioSetting
     file_reader, sample_rate = sf.read('Noise_8ch.wav')
     print("RECORDING...\n")
-    r_wn = sd.playrec(file_reader, fs, channels=1)  # playing and recording simultaneously & saving audio as an array
+    r_wn = sd.playrec(file_reader, fs, channels=1)  # playing and recording simultaneously & saving audio as NumPy array
     sd.wait()  # wait for the recording to finish before moving on
     return r_wn
 
-# def plot(spect, amp, name, x, y):
-    # # Generate the figure **without using pyplot**.
-    # print("GENERATING FIGURE FOR: " + name)
-    # fig = Figure(figsize=(8, 4))
-    # ax = fig.subplots()
-    # ax.set_xlabel(x)
-    # ax.set_ylabel(y)
-    # ax.plot(spect, amp)
-    # file = "static/images/"+ name + ".png"
-    # fig.savefig(file)
-    # return file
+
+def plot_ta(x, title):
+    fig, ax = plt.subplots()
+    ax.plot(x)
+    plt.title(title)
+    plt.show()
+    # the figure window blocks the rest of script from running until the window is clsoed
+    # to fix this, you can run the plot function in a separate thread
+    return
+
+def plot_fa(f, psd, title):
+    plt.semilogy(f, psd)
+    plt.xlabel('frequency [Hz]')
+    plt.ylabel('amp')
+    plt.title(title)
+    plt.show()
 
 
 def calc_filter(iter, fs, nfft, pb_wn, r_wn):
@@ -67,9 +73,9 @@ def calc_filter(iter, fs, nfft, pb_wn, r_wn):
     
     if iter == 1:
         pb_wn = pb_wn
-    ##else:
-        ## pb_wn = pb_filt_wn
-    
+    # else:
+        # pb_wn = pb_filt_wn
+     
     # adjust the amp
     if max(abs(r_wn)) > 0.2:
         print("-- exceeds max amp")
@@ -92,26 +98,31 @@ def calc_filter(iter, fs, nfft, pb_wn, r_wn):
     print(len(r_wn), len(pb_wn))
 
     # calculate power spectrum
-    pb_wn_spect, pb_wn_amps = signal.welch(pb_wn, nfft)
-    r_wn_spect, r_wn_amps = signal.welch(r_wn, nfft) 
+    f_pb_wn, Pxx_den_pb_wn = signal.welch(pb_wn, fs)
+    f_r_wn, Pxx_den_r_wn = signal.welch(r_wn, fs)
+    plot_fa(f_pb_wn, Pxx_den_pb_wn, "psd pnb_wn")
+    plot_fa(f_r_wn, Pxx_den_r_wn, "psd r_wn")
+    
+    # signal.welch documentation: https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.welch.html
 
     # calculate the ratio of amplitudes at each frequency
-    r = np.divide(pb_wn_amps, r_wn_amps) # the ratio between the original and the recorded
+    # r = np.divide(pb_wn_amp, r_wn_amps) # the ratio between the original and the recorded
 
-    print(pb_wn_spect)
-    print(r_wn_spect)
-    print(r)
+    # print(pb_wn_spect)
+    # print(r_wn_spect)
+    # print(r)
     # use the ratio to design a filter
     # save the filter to a .wav file
 
 
 
-# THIS IS THE MODULE THAT IS RUN. IT CALLS THE FUNCTIONS ABOVE.
 if __name__ == "__main__":
     fs = 48000
     nfft = 1
     pb_wn = white_noise(fs)
     r_wn = play_rec(fs, pb_wn)
+
+    plot_ta(pb_wn, "pb_wn: white noise")
 
     iterations = [1]
     for iter in iterations:
