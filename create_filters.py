@@ -13,7 +13,7 @@ def white_noise(fs):
     print("WHITE NOSIE\n")
     # create white noise
     wn = np.random.rand(2 * fs) - 0.5  # generate 2 sec of random noise (vector of evenly spaced random nums)
-    plot_ta(wn, "wn: white noise")
+    # plot_ta(wn, "wn: white noise")
 
     # taper white noise
     window = np.ones(len(wn))  # array of 1s that is the length of the random noise
@@ -30,24 +30,24 @@ def white_noise(fs):
     pb_wn = np.append(pb_wn, padding)
     pb_wn = np.append(pb_wn, padding)
     pb_wn = np.append(pb_wn, padding)
-    # pb_wn = [padding, pb_wn, padding, padding, padding]
-    sf.write('Noise_8ch.wav', pb_wn, fs)  # create wave file & save the random noise in it
-    return pb_wn
+    sf.write('white_noise.wav', pb_wn, fs)  #  save the random noise in .wav file
+    return
 
 
-def play_rec(fs, sound):
+def play_rec(rec_filename, play_filename):
     # record to wave file source: https://python-sounddevice.readthedocs.io/en/0.4.1/usage.html#recording
     # possible source for APO: https://python-sounddevice.readthedocs.io/en/0.3.11/#sounddevice.AsioSetting
-    file_reader, sample_rate = sf.read('Noise_8ch.wav')
+    file_reader, fs = sf.read(play_filename)
     print("RECORDING...\n")
-    r_wn = sd.playrec(file_reader, fs, channels=1)  # playing and recording simultaneously & saving audio as NumPy array
+    recording = sd.playrec(file_reader, fs, channels=1)  # playing and recording simultaneously & saving audio as NumPy array
     sd.wait()  # wait for the recording to finish before moving on
-    return r_wn
+    sf.write(rec_filename, recording, fs) #  save the recording in .wav file
+    return
 
 
 def plot_ta(x, title):
-    fig, ax = plt.subplots()
-    ax.plot(x)
+    # plots waveforms (time x amplitude)
+    plt.plot(x)
     plt.title(title)
     plt.show()
     # the figure window blocks the rest of script from running until the window is clsoed
@@ -55,77 +55,119 @@ def plot_ta(x, title):
     return
 
 def plot_fa(f, psd, title):
-    plt.semilogy(f, psd)
+    # plots ampltiude spectrums (frequency x power spectral density)
+    plt.semilogy(f, psd) # semilogy transforms the y axis to log scaling: https://matplotlib.org/3.1.1/api/_as_gen/matplotlib.pyplot.semilogy.html
     plt.xlabel('frequency [Hz]')
     plt.ylabel('amp')
     plt.title(title)
     plt.show()
 
+def plot_fa3(f, psd1, psd2, psd3, title):
+    # plots three ampltiude spectrums (frequency x power spectral density)
+    plt.semilogy(f, psd1) 
+    plt.semilogy(f, psd2)
+    plt.semilogy(f, psd3)
+    plt.xlabel('frequency [Hz]')
+    plt.ylabel('amp')
+    plt.title(title)
+    plt.show()
 
-def calc_filter(iter, fs, nfft, pb_wn, r_wn):
-    # adjust the amp
+def plot_fa4(f, psd1, psd2, psd3, psd4, title):
+    # plots three ampltiude spectrums (frequency x power spectral density)
+    plt.semilogy(f, psd1) 
+    plt.semilogy(f, psd2)
+    plt.semilogy(f, psd3)
+    plt.semilogy(f, psd4)
+    plt.xlabel('frequency [Hz]')
+    plt.ylabel('amp')
+    plt.title(title)
+    plt.show()
+
+def calc_filter(iter, fftSize):
+    # adjust the amp of the playback
     # re-record with amp adjusted noise
     # equalize the length of recording and playback
-    # calculate power spectrum
-    # calculate the ratio of amplitudes at each frequency
+    # calculate amplitude spectrum
+    # calculate the ratio between the recording and the playback
     # use the ratio to design a filter
     # save the filter to a .wav file\=
     
     if iter == 1:
-        pb_wn = pb_wn
+        recording_filename = "rec_white_noise" + str(iter) + ".wav"
+        playback_filename = "white_noise.wav"
     # else:
-        # pb_wn = pb_filt_wn
-     
+        # recording_filename = "rec_white_noise" + iter + ".wav"
+        # recording_filename = "rec_white_noise" + str(iter -1) + ".wav"
+    
+    play_rec(recording_filename, playback_filename)
+    recording, r_fs = sf.read(recording_filename)
+    playback, p_fs = sf.read(playback_filename)
+
     # adjust the amp
-    if max(abs(r_wn)) > 0.2:
+    if max(abs(recording)) > 0.2:
         print("-- exceeds max amp")
-        adjust = 0.2 / max(abs(r_wn))
-        pb_wn = adjust * pb_wn
+        adjust = 0.2 / max(abs(recording))
+        playback = adjust * playback
+        sf.write(playback_filename, playback, p_fs)
     else:
         print("-- below max amp")
     
     # re-record with amp adjusted noise
-    r_wn = play_rec(fs, pb_wn)
+    play_rec(recording_filename, playback_filename)
+    recording, r_fs = sf.read(recording_filename)
+    playback, p_fs = sf.read(playback_filename)
 
     # equalize the length of recording and playback
-    if len(r_wn) > len(pb_wn):
+    if len(recording) > len(playback):
         print("r_wn > pb_wn, shortening r_wn")
-        r_wn[len(pb_wn)+1 : len(r_wn)] = []
-    elif len(r_wn) < len(pb_wn):
+        recording[len(playback)+1 : len(recording)] = []
+    elif len(recording) < len(playback):
         print("r_wn < pb_wn, lengthening r_wn (with silence)")
-        r_wn = r_wn[len(r_wn):len(pb_wn)] + [0]*(len(pb_wn)-len(r_wn))
+        recording = recording[len(recording):len(playback)] + [0]*(len(playback)-len(recording))
 
-    print(len(r_wn), len(pb_wn))
-
-    # calculate power spectrum
-    f_pb_wn, Pxx_den_pb_wn = signal.welch(pb_wn, fs)
-    f_r_wn, Pxx_den_r_wn = signal.welch(r_wn, fs)
-    plot_fa(f_pb_wn, Pxx_den_pb_wn, "psd pnb_wn")
-    plot_fa(f_r_wn, Pxx_den_r_wn, "psd r_wn")
-    
+    # calculate ampltiude spectrums
     # signal.welch documentation: https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.welch.html
+    # freq_recording, Pxx_den_recording = signal.welch(recording, r_fs, nperseg=bin_length)
+    # plot_fa(freq_recording, Pxx_den_recording, "psd recording")
+    
+    # freq_playback, Pxx_den_playback = signal.welch(playback, p_fs, nperseg=bin_length)
+    # plot_fa(freq_playback, Pxx_den_playback, "psd playback")
+    
+    
+    freq_recording, Pxx_den_recording = signal.welch(recording, r_fs, nfft=fftSize)
+    plot_fa(freq_recording, Pxx_den_recording, "psd recording")
+    
+    freq_playback, Pxx_den_playback = signal.welch(playback, p_fs, nfft=fftSize)
+    plot_fa(freq_playback, Pxx_den_playback, "psd playback")
 
-    # calculate the ratio of amplitudes at each frequency
-    # r = np.divide(pb_wn_amp, r_wn_amps) # the ratio between the original and the recorded
+    # calculate the ratio between the recording and the playback
+    ratio = np.divide(Pxx_den_playback, Pxx_den_recording)
+    plot_fa(freq_recording, ratio, "ratio")
+    plot_fa3(freq_recording, Pxx_den_recording, Pxx_den_playback, ratio, "rec, playback, ratio")
 
-    # print(pb_wn_spect)
-    # print(r_wn_spect)
-    # print(r)
     # use the ratio to design a filter
+    filter_design = signal.firwin2(fftSize + 1, freq_playback, ratio, fs=fs)
+    freq_design, Pxx_den_design = signal.welch(filter_design, r_fs, nfft=fftSize)
+    plot_fa3(freq_design, Pxx_den_recording, Pxx_den_design, ratio, "rec, filter design, ratio")
+
+    container = np.zeros(len(filter_design))
+    container[0] = 1 # look at the dimensions
+
+    filtered_data = signal.lfilter(filter_design, container, recording)
+    
+    freq_filtered, Pxx_den_filtered = signal.welch(filtered_data, r_fs, nfft=fftSize)
+    plot_fa(freq_filtered, Pxx_den_filtered, "psd filtered")
+
+    plot_fa4(freq_recording, Pxx_den_recording, Pxx_den_playback,ratio, Pxx_den_filtered, "all four")
     # save the filter to a .wav file
-
-
+    
 
 if __name__ == "__main__":
     fs = 48000
-    nfft = 1
-    pb_wn = white_noise(fs)
-    r_wn = play_rec(fs, pb_wn)
-
-    plot_ta(pb_wn, "pb_wn: white noise")
+    fftSize = 16768 # fftLength in Rex's code, nfft in signal.welch documentation
+    white_noise(fs)
 
     iterations = [1]
     for iter in iterations:
         print("------ STARTING ITERATION #" + str(iter) + " ------")
-        calc_filter(iter, fs, nfft, pb_wn, r_wn)
-    
+        calc_filter(iter, fftSize)
